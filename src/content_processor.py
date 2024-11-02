@@ -147,3 +147,102 @@ class ContentProcessor:
             logger.error(f"Error in fetch_github_content: {str(e)}")
             logger.error(traceback.format_exc())
             raise
+
+    def process(self, activity_data: dict) -> dict:
+        """
+        Process the GitHub activity data and categorize it.
+        
+        Args:
+            activity_data: Dictionary containing 'pulls', 'issues', and 'commits' data
+            
+        Returns:
+            Dictionary of processed and categorized content
+        """
+        try:
+            logger.info("Starting content processing")
+            
+            processed_content = {
+                'code_changes': [],
+                'bug_fixes': [],
+                'features': [],
+                'documentation': [],
+                'other': []
+            }
+            
+            # Process pull requests
+            for pr in activity_data.get('pulls', []):
+                category = self._categorize_item(pr)
+                item_data = {
+                    'type': 'pull_request',
+                    'number': pr.get('number'),
+                    'title': pr.get('title'),
+                    'body': pr.get('body', ''),
+                    'url': pr.get('url'),
+                    'created_at': pr.get('created_at'),
+                    'author': pr.get('author'),
+                    'labels': pr.get('labels', [])
+                }
+                processed_content[category].append(item_data)
+            
+            # Process issues
+            for issue in activity_data.get('issues', []):
+                category = self._categorize_item(issue)
+                item_data = {
+                    'type': 'issue',
+                    'number': issue.get('number'),
+                    'title': issue.get('title'),
+                    'body': issue.get('body', ''),
+                    'url': issue.get('url'),
+                    'created_at': issue.get('created_at'),
+                    'author': issue.get('author'),
+                    'labels': issue.get('labels', [])
+                }
+                processed_content[category].append(item_data)
+            
+            # Process commits
+            for commit in activity_data.get('commits', []):
+                category = self._categorize_item(commit)
+                item_data = {
+                    'type': 'commit',
+                    'sha': commit.get('sha'),
+                    'message': commit.get('message'),
+                    'url': commit.get('url'),
+                    'created_at': commit.get('created_at'),
+                    'author': commit.get('author')
+                }
+                processed_content[category].append(item_data)
+            
+            logger.info("Content processing completed successfully")
+            return processed_content
+            
+        except Exception as e:
+            logger.error(f"Error in process method: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise
+
+    def _categorize_item(self, item: dict) -> str:
+        """
+        Categorize an item based on its title, body, and labels.
+        """
+        title = item.get('title', '').lower()
+        body = item.get('body', '').lower()
+        labels = [label.lower() for label in item.get('labels', [])]
+        
+        # Check for documentation changes
+        if any(keyword in title or keyword in body for keyword in ['doc', 'docs', 'documentation']):
+            return 'documentation'
+        
+        # Check for bug fixes
+        if any(keyword in title or keyword in body or keyword in labels for keyword in ['bug', 'fix', 'hotfix']):
+            return 'bug_fixes'
+        
+        # Check for features
+        if any(keyword in title or keyword in body or keyword in labels for keyword in ['feature', 'enhancement', 'feat']):
+            return 'features'
+        
+        # Check for code changes
+        if any(keyword in title or keyword in body for keyword in ['refactor', 'perf', 'performance', 'test']):
+            return 'code_changes'
+        
+        # Default category
+        return 'other'
